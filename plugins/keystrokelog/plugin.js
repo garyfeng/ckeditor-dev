@@ -355,7 +355,7 @@ JSON.stringifyOnce = function(obj, replacer, indent){
 		 * @since 4.4.5
 		 * @readonly
 		 */
-		// garyfeng: change this from 25 to 2.
+		// garyfeng: change this from 25 to 1.
 		this.strokesLimit = 1;
 
 		this.editor = editor;
