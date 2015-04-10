@@ -8,6 +8,50 @@
  * @fileOverview Keystroke logging plug-in.
  */
 
+// garyfeng: utility to deal with JSON circular references
+// see http://stackoverflow.com/questions/11616630/json-stringify-avoid-typeerror-converting-circular-structure-to-json
+JSON.stringifyOnce = function(obj, replacer, indent){
+    var printedObjects = [];
+    var printedObjectKeys = [];
+
+    function printOnceReplacer(key, value){
+        if ( printedObjects.length > 2000){ // browsers will not print more than 20K, I don't see the point to allow 2K.. algorithm will not be fast anyway if we have too many objects
+        return 'object too long';
+        }
+        var printedObjIndex = false;
+        printedObjects.forEach(function(obj, index){
+            if(obj===value){
+                printedObjIndex = index;
+            }
+        });
+
+        if ( key == ''){ //root element
+             printedObjects.push(obj);
+            printedObjectKeys.push("root");
+             return value;
+        }
+
+        else if(printedObjIndex+"" != "false" && typeof(value)=="object"){
+            if ( printedObjectKeys[printedObjIndex] == "root"){
+                return "(pointer to root)";
+            }else{
+                return "(see " + ((!!value && !!value.constructor) ? value.constructor.name.toLowerCase()  : typeof(value)) + " with key " + printedObjectKeys[printedObjIndex] + ")";
+            }
+        }else{
+
+            var qualifiedKey = key || "(empty key)";
+            printedObjects.push(value);
+            printedObjectKeys.push(qualifiedKey);
+            if(replacer){
+                return replacer(key, value);
+            }else{
+                return value;
+            }
+        }
+    }
+    return JSON.stringify(obj, printOnceReplacer, indent);
+};
+// end garyfeng
 
 'use strict';
 
@@ -71,6 +115,10 @@
 			// garyfeng: This is the primary saveSnapShot function.
 			// need to convert the save() function to the log() function.
 			function recordCommand( event ) {
+				// garyfeng: logging the save command
+				keystrokeManager.logit("RECORDCOMMAND");
+				// end gary feng
+
 				// If the command hasn't been marked to not support undo.
 				if ( keystrokeManager.enabled && event.data.command.canUndo !== false )
 					keystrokeManager.save();
@@ -82,7 +130,12 @@
 
 			// Save snapshots before doing custom changes.
 			editor.on( 'saveSnapshot', function( evt ) {
+				// garyfeng: logging the save command
+				keystrokeManager.logit("ONSAVESNAPSHOT");
+				// end gary feng
+
 				keystrokeManager.save( evt.data && evt.data.contentOnly );
+
 			} );
 
 			// garyfeng: not sure what this does.
@@ -90,6 +143,10 @@
 			editor.on( 'contentDom', editingHandler.attachListeners, editingHandler );
 
 			editor.on( 'instanceReady', function() {
+				// garyfeng: logging the save command
+				keystrokeManager.logit("ONINSTANCEREADY");
+				// end gary feng
+
 				// Saves initial snapshot.
 				editor.fire( 'saveSnapshot' );
 			} );
@@ -98,6 +155,9 @@
 			// changed editor contents.
 			editor.on( 'beforeModeUnload', function() {
 				editor.mode == 'wysiwyg' && keystrokeManager.save( true );
+				// garyfeng: logging the save command
+				keystrokeManager.logit("ONBEFOREMODEUNLOAD");
+				// end gary feng
 			} );
 
 			//garyfeng: TODO: this probalby is unnecessary
@@ -159,6 +219,9 @@
 			editor.on( 'updateSnapshot', function() {
 				if ( keystrokeManager.currentImage )
 					keystrokeManager.update();
+					// garyfeng: logging the save command
+					keystrokeManager.logit("ONUPDATESNAPSHOT");
+					// end gary feng
 			} );
 
 			/**
@@ -185,6 +248,11 @@
 			editor.on( 'lockSnapshot', function( evt ) {
 				var data = evt.data;
 				keystrokeManager.lock( data && data.dontUpdate, data && data.forceUpdate );
+
+				// garyfeng: logging the save command
+				keystrokeManager.logit("ONLOCKSNAPSHOT");
+				// end gary feng
+
 			} );
 
 			/**
@@ -275,7 +343,8 @@
 		 */
 		logit: function( msg, obj ) {
 			// garyfeng: v1.
-			console.log("logit: "+msg+"\t"+JSON.stringify(obj))
+			//console.log("logit: "+msg+"\t"+JSON.stringifyOnce(obj))
+			console.log("logit: t="+(new Date()).getTime()+"\tmsg="+msg)
 		},
 			/**
 			 * Handles keystroke support for the undo manager. It is called on `keyup` event for
@@ -431,6 +500,7 @@
 
 			// garyfeng: logging the save command
 			this.logit("SAVE", image);
+			// end gary feng
 
 			return true;
 		},
@@ -994,7 +1064,7 @@
 		 */
 		onKeydown: function( evt ) {
 			// garyfeng: log it
-			this.logit("ONKEYDOWN", evt);
+			this.keystrokeManager.logit("ONKEYDOWN", evt);
 			// end garyfeng
 
 			var keyCode = evt.data.getKey();
@@ -1055,7 +1125,7 @@
 			}
 
 			// garyfeng: log it
-			this.logit("ONINPUT", lastInput);
+			this.keystrokeManager.logit("ONINPUT", lastInput);
 			// end garyfeng
 
 
@@ -1076,7 +1146,7 @@
 		 */
 		onKeyup: function( evt ) {
 			// garyfeng: log it
-			this.logit("ONKEYUP", evt);
+			this.keystrokeManager.logit("ONKEYUP", evt);
 			// end garyfeng
 
 			var keystrokeManager = this.keystrokeManager,
@@ -1123,7 +1193,7 @@
 			keystrokeManager.resetType();
 
 			// garyfeng: log it
-			this.logit("ONNAVIGATIONKEY", skipContentCompare);
+			this.keystrokeManager.logit("ONNAVIGATIONKEY", skipContentCompare);
 			// end garyfeng
 
 		},
