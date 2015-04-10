@@ -8,7 +8,17 @@
  * @fileOverview Keystroke logging plug-in.
  */
 
-// garyfeng: utility to deal with JSON circular references
+// garyfeng: utilities to deal with JSON circular references
+// String.startsWith(), see
+// http://stackoverflow.com/questions/646628/how-to-check-if-a-string-startswith-another-string
+if (typeof String.prototype.startsWith != 'function') {
+  // see below for better implementation!
+  String.prototype.startsWith = function (str){
+    return this.indexOf(str) === 0;
+  };
+}
+
+// extending JSON.stringify() to prevent circular errors
 // see http://stackoverflow.com/questions/11616630/json-stringify-avoid-typeerror-converting-circular-structure-to-json
 JSON.stringifyOnce = function(obj, replacer, indent){
     var printedObjects = [];
@@ -16,7 +26,7 @@ JSON.stringifyOnce = function(obj, replacer, indent){
 
     function printOnceReplacer(key, value){
         if ( printedObjects.length > 2000){ // browsers will not print more than 20K, I don't see the point to allow 2K.. algorithm will not be fast anyway if we have too many objects
-        return 'object too long';
+        	return 'object too long';
         }
         var printedObjIndex = false;
         printedObjects.forEach(function(obj, index){
@@ -27,8 +37,13 @@ JSON.stringifyOnce = function(obj, replacer, indent){
 
         if ( key == ''){ //root element
              printedObjects.push(obj);
-            printedObjectKeys.push("root");
+             printedObjectKeys.push("root");
              return value;
+        }
+
+				// garyfeng: if the key starts with '_', don't go in.
+				if ( key.startsWith("_")){ //a private element
+             return "(private element, skipping)";
         }
 
         else if(printedObjIndex+"" != "false" && typeof(value)=="object"){
@@ -49,7 +64,15 @@ JSON.stringifyOnce = function(obj, replacer, indent){
             }
         }
     }
-    return JSON.stringify(obj, printOnceReplacer, indent);
+
+		var res="unknown error"
+		try {
+		 	res = JSON.stringify(obj, printOnceReplacer, indent)
+		} catch (e) {
+			console.log(e)
+		}
+
+    return res;
 };
 // end garyfeng
 
@@ -116,7 +139,8 @@ JSON.stringifyOnce = function(obj, replacer, indent){
 			// need to convert the save() function to the log() function.
 			function recordCommand( event ) {
 				// garyfeng: logging the save command
-				keystrokeManager.logit("RECORDCOMMAND");
+				console.log(event)
+				keystrokeManager.logit("RECORDCOMMAND", event.data);
 				// end gary feng
 
 				// If the command hasn't been marked to not support undo.
@@ -131,7 +155,14 @@ JSON.stringifyOnce = function(obj, replacer, indent){
 			// Save snapshots before doing custom changes.
 			editor.on( 'saveSnapshot', function( evt ) {
 				// garyfeng: logging the save command
-				keystrokeManager.logit("ONSAVESNAPSHOT");
+				var data={
+					"name":evt.name,
+					"senderType": evt.sender.constructor,
+					"senderID": evt.sender.id,
+					"senderName": evt.sender.name,
+				}
+				console.log(evt);
+				keystrokeManager.logit("ONSAVESNAPSHOT", data);
 				// end gary feng
 
 				keystrokeManager.save( evt.data && evt.data.contentOnly );
@@ -250,7 +281,8 @@ JSON.stringifyOnce = function(obj, replacer, indent){
 				keystrokeManager.lock( data && data.dontUpdate, data && data.forceUpdate );
 
 				// garyfeng: logging the save command
-				keystrokeManager.logit("ONLOCKSNAPSHOT");
+				// console.log(evt);
+				// keystrokeManager.logit("ONLOCKSNAPSHOT", evt);
 				// end gary feng
 
 			} );
@@ -344,7 +376,13 @@ JSON.stringifyOnce = function(obj, replacer, indent){
 		logit: function( msg, obj ) {
 			// garyfeng: v1.
 			//console.log("logit: "+msg+"\t"+JSON.stringifyOnce(obj))
-			console.log("logit: t="+(new Date()).getTime()+"\tmsg="+msg)
+			if (!obj) {
+				console.log("logit: t="+(new Date()).getTime()+"\tmsg="+msg)
+
+			} else {
+				console.log("logit: t="+(new Date()).getTime()+"\tmsg="+msg+"\t"+JSON.stringifyOnce(obj))
+
+			}
 		},
 			/**
 			 * Handles keystroke support for the undo manager. It is called on `keyup` event for
@@ -499,7 +537,13 @@ JSON.stringifyOnce = function(obj, replacer, indent){
 				this.refreshState();
 
 			// garyfeng: logging the save command
-			this.logit("SAVE", image);
+			var data={
+				"onContentOnly": onContentOnly,
+				"autoFireChange": autoFireChange,
+				"contents": image.contents,
+				"selections": image.bookmarks
+			}
+			this.logit("SAVE", data);
 			// end gary feng
 
 			return true;
@@ -569,7 +613,7 @@ JSON.stringifyOnce = function(obj, replacer, indent){
 				image, i;
 
 			// garyfeng: log it
-			this.logit("GETNEXTIMAGE", {});
+			// this.logit("GETNEXTIMAGE");
 			// end garyfeng
 
 			if ( currentImage ) {
@@ -619,7 +663,7 @@ JSON.stringifyOnce = function(obj, replacer, indent){
 		 */
 		undo: function() {
 			// garyfeng: log it
-			this.logit("UNDO", {});
+			this.logit("UNDO");
 			// end garyfeng
 			if ( this.undoable() ) {
 				this.save( true );
@@ -637,7 +681,7 @@ JSON.stringifyOnce = function(obj, replacer, indent){
 		 */
 		redo: function() {
 			// garyfeng: log it
-			this.logit("REDO", {});
+			this.logit("REDO");
 			// end garyfeng
 
 			if ( this.redoable() ) {
@@ -697,7 +741,11 @@ JSON.stringifyOnce = function(obj, replacer, indent){
 		 */
 		updateSelection: function( newSnapshot ) {
 			// garyfeng: log it
-			this.logit("UPDATESELECTION", newSnapshot);
+			var data={
+				"contents": 	newSnapshot.contents,
+				"selection": 	newSnapshot.bookmarks
+			}
+			this.logit("UPDATESELECTION", data);
 			// end garyfeng
 
 			if ( !this.snapshots.length )
@@ -742,7 +790,7 @@ JSON.stringifyOnce = function(obj, replacer, indent){
 		 */
 		lock: function( dontUpdate, forceUpdate ) {
 			// garyfeng: log it
-			this.logit("LOCK", {});
+			// this.logit("LOCK");
 			// end garyfeng
 
 			if ( !this.locked ) {
@@ -786,7 +834,7 @@ JSON.stringifyOnce = function(obj, replacer, indent){
 		 */
 		unlock: function() {
 			// garyfeng: log it
-			this.logit("UNLOCK", {});
+			// this.logit("UNLOCK");
 			// end garyfeng
 
 			if ( this.locked ) {
@@ -1064,7 +1112,33 @@ JSON.stringifyOnce = function(obj, replacer, indent){
 		 */
 		onKeydown: function( evt ) {
 			// garyfeng: log it
-			this.keystrokeManager.logit("ONKEYDOWN", evt);
+			var data={
+				"name":evt.name,
+				//"sender": evt.sender,
+				"id": evt.sender.$.id,
+				"textContent": evt.sender.$.textContent,
+				"baseURI": evt.sender.$.baseURI,
+				"className": evt.sender.$.className,
+				"nodeType": evt.sender.$.nodeType,
+				"nodeName": evt.sender.$.nodeName,
+				"innerText": evt.sender.$.innerText,
+				"outerHTML": evt.sender.$.outerHTML,
+				"innerHTML": evt.sender.$.innerHTML,
+				"scrollHeight": evt.sender.$.scrollHeight,
+				"scrollWidth": evt.sender.$.scrollWidth,
+				"scrollTop": evt.sender.$.scrollTop,
+				"scrollLeft": evt.sender.$.scrollLeft,
+				"clientHeight": evt.sender.$.clientHeight,
+				"clientWidth": evt.sender.$.clientWidth,
+				"clientTop": evt.sender.$.clientTop,
+				"clientLeft": evt.sender.$.clientLeft,
+				"offsetParent": evt.sender.$.offsetParent,
+				"offsetHeight": evt.sender.$.offsetHeight,
+				"offsetWidth": evt.sender.$.offsetWidth,
+				"offsetTop": evt.sender.$.offsetTop,
+				"offsetLeft": evt.sender.$.offsetLeft
+			}
+			this.keystrokeManager.logit("ONKEYDOWN", data);
 			// end garyfeng
 
 			var keyCode = evt.data.getKey();
@@ -1125,7 +1199,13 @@ JSON.stringifyOnce = function(obj, replacer, indent){
 			}
 
 			// garyfeng: log it
-			this.keystrokeManager.logit("ONINPUT", lastInput);
+			// garyfeng: log it
+			var data={
+				"name":"input",
+				"sender": "notTracking",
+				"keycode": lastInput.keyCode
+			}
+			this.keystrokeManager.logit("ONINPUT", data);
 			// end garyfeng
 
 
@@ -1146,7 +1226,13 @@ JSON.stringifyOnce = function(obj, replacer, indent){
 		 */
 		onKeyup: function( evt ) {
 			// garyfeng: log it
-			this.keystrokeManager.logit("ONKEYUP", evt);
+			var data={
+				"name":evt.name,
+				//"sender": evt.sender,
+				"innerText": evt.sender.$.innerText,
+				"outerHTML": evt.sender.$.outerHTML
+			}
+			this.keystrokeManager.logit("ONKEYUP", data);
 			// end garyfeng
 
 			var keystrokeManager = this.keystrokeManager,
