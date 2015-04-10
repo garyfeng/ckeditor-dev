@@ -42,7 +42,7 @@ JSON.stringifyOnce = function(obj, replacer, indent){
         }
 
 				// garyfeng: if the key starts with '_', don't go in.
-				if ( key.startsWith("_")){ //a private element
+				else if ( key.startsWith("_")){ //a private element
              return "(private element, skipping)";
         }
 
@@ -356,7 +356,7 @@ JSON.stringifyOnce = function(obj, replacer, indent){
 		 * @readonly
 		 */
 		// garyfeng: change this from 25 to 2.
-		this.strokesLimit = 2;
+		this.strokesLimit = 1;
 
 		this.editor = editor;
 
